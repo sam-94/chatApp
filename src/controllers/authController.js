@@ -2,7 +2,7 @@ import * as authModel from '../models/authModel.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { ApiResponse } from "../utils/apiResponse.js";
-import { ApiError } from '../utils/apiError.js';
+import { logError } from '../utils/logger.js';
 
 const generateAccessToken = (user) =>
   jwt.sign({ id: user.id, email: user.email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' });
@@ -21,10 +21,11 @@ export const register = async (req, res, next) => {
     const hashed = await bcrypt.hash(password, 10);
     await authModel.createUser({ name, email, password: hashed });
 
-    res.status(201).json(
-		new ApiResponse(201, createdUser, "User registered Successfully")
+    return res.status(201).json(
+		new ApiResponse(201, null, "User registered Successfully")
 	);
   } catch (err) {
+    logError(err);
     next(err);
   }
 };
@@ -42,13 +43,20 @@ export const login = async (req, res, next) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
     await authModel.saveRefreshToken(user.id, refreshToken);
-	const loggedInUser = await authModel.findByEmail(user.email);
+	  const loggedInUser = await authModel.findByEmail(user.email);
+    const loggedInData = {
+      "id": loggedInUser.id,
+      "name": loggedInUser.name,
+      "email": loggedInUser.email,
+      "accessToken": accessToken,
+      "refreshToken": refreshToken,
+    };
 
-
-    res.json(new ApiResponse(201, loggedInUser, "User registered Successfully"));
+    return res.status(200).json(new ApiResponse(200, loggedInData, "User Login Successfully"));
 	
   } catch (err) {
-    return res.json(new ApiError(500, "something", err))
+    logError(err);
+    next(err);
   }
 };
 
@@ -66,6 +74,7 @@ export const refresh = async (req, res, next) => {
       res.json({ accessToken });
     });
   } catch (err) {
+    logError(err);
     next(err);
   }
 };
@@ -75,8 +84,9 @@ export const logout = async (req, res, next) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId required' });
     await authModel.removeRefreshToken(userId);
-    res.json({ message: 'Logged out' });
+    return res.status(200).json(new ApiResponse(200, null, "User Logged out Successfully"));
   } catch (err) {
+    logError(err);
     next(err);
   }
 };

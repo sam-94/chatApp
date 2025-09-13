@@ -6,6 +6,7 @@ export const listUsers = async (req, res, next) => {
     const users = await userModel.getAllUsers();
     res.json(users);
   } catch (err) {
+    logError(err);
     next(err);
   }
 };
