@@ -11,36 +11,37 @@ export default async (req, res, next) => {
 
     const token = parts[1];
 
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, async (err, decoded) => {
-      if (!err) {
-        req.user = decoded;
+    try {
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      req.user = decoded;
+      return next();
+    } catch (accessErr) {
+      // access token invalid/expired -> try refresh token
+      const refreshToken = req.cookies?.refreshToken || req.headers['x-refresh-token'] || req.body?.refreshToken;
+      if (!refreshToken) return res.status(401).json({ error: 'Access token expired. Provide refresh token' });
+
+      const userWithToken = await authModel.findByRefreshToken(refreshToken);
+      if (!userWithToken) return res.status(403).json({ error: 'Refresh token invalid' });
+
+      try {
+        const decodedRefresh = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        // rotate refresh token: create new refresh and store it
+        const newAccessToken = jwt.sign({ id: userWithToken.id, email: userWithToken.email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' });
+        const newRefreshToken = jwt.sign({ id: userWithToken.id, email: userWithToken.email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' });
+
+        // persist rotated refresh token
+        await authModel.saveRefreshToken(userWithToken.id, newRefreshToken);
+
+        // set httpOnly secure cookie
+        res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7*24*3600*1000 });
+
+        res.setHeader('x-access-token', newAccessToken);
+        req.user = { id: userWithToken.id, email: userWithToken.email };
         return next();
+      } catch (refreshErr) {
+        return res.status(403).json({ error: 'Refresh token invalid or expired' });
       }
-
-      if (err.name === 'TokenExpiredError') {
-        const refreshToken = req.headers['x-refresh-token'] || req.body.refreshToken;
-        if (!refreshToken) return res.status(401).json({ error: 'Access token expired. Provide refresh token' });
-
-        const userWithToken = await authModel.findByRefreshToken(refreshToken);
-        if (!userWithToken) return res.status(403).json({ error: 'Refresh token invalid' });
-
-        jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (refreshErr) => {
-          if (refreshErr) return res.status(403).json({ error: 'Refresh token invalid or expired' });
-
-          const newAccessToken = jwt.sign(
-            { id: userWithToken.id, email: userWithToken.email },
-            process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
-          );
-
-          res.setHeader('x-access-token', newAccessToken);
-          req.user = { id: userWithToken.id, email: userWithToken.email };
-          return next();
-        });
-      } else {
-        return res.status(401).json({ error: 'Invalid access token' });
-      }
-    });
+    }
   } catch (err) {
     next(err);
   }

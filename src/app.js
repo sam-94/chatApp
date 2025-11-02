@@ -1,4 +1,5 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import pool from './config/db.js';
 import errorHandler from './middlewares/errorHandler.js';
 import authRouter from './routes/auth.js';
@@ -7,6 +8,7 @@ import authMiddleware from './middlewares/authMiddleware.js';
 
 const app = express()
 
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
