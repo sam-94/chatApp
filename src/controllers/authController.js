@@ -36,8 +36,8 @@ export const login = async (req, res, next) => {
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
 
     const user = await authModel.findByEmail(email);
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const match = await bcrypt.compare(password, user.password);
-
     if (!user || !match) return res.status(401).json({ error: 'Invalid credentials' });
 
     const accessToken = generateAccessToken(user);

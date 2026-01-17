@@ -5,12 +5,19 @@ import errorHandler from './middlewares/errorHandler.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import authMiddleware from './middlewares/authMiddleware.js';
+import cors from 'cors';
 
 const app = express()
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// ✅ Allow frontend origin and cookies
+app.use(cors({
+  origin: 'http://localhost:5173',   // your Vite dev server
+  credentials: true,                 // allow cookies and auth headers
+}));
+
 
 app.use('/api/auth', authRouter);
 
