@@ -19,10 +19,23 @@ export const register = async (req, res, next) => {
     if (existing) return res.status(409).json({ error: 'User already exists' });
 
     const hashed = await bcrypt.hash(password, 10);
-    await authModel.createUser({ name, email, password: hashed });
+    const user = await authModel.createUser({ name, email, password: hashed });
 
+    //generate tokens
+    const accessToken = generateAccessToken(user)
+    const refreshToken = generateRefreshToken(user)
+
+    //save refresh token in DB
+    await authModel.saveRefreshToken(user.id, refreshToken)
+    const data = {
+      "id": user.id,
+      "name": user.name,
+      "email": user.email,
+      "accessToken": accessToken,
+      "refreshToken": refreshToken,
+    };
     return res.status(201).json(
-		new ApiResponse(201, null, "User registered Successfully")
+		new ApiResponse(201, data, "User registered Successfully")
 	);
   } catch (err) {
     logError(err);
