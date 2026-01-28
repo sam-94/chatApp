@@ -14,7 +14,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // ✅ Allow frontend origin and cookies
 app.use(cors({
-  origin: 'http://localhost:5173',   // your Vite dev server
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],   // your Vite dev server
+
   credentials: true,                 // allow cookies and auth headers
 }));
 
