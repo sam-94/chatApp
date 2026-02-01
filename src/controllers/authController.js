@@ -1,105 +1,25 @@
-import * as authModel from '../models/authModel.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { ApiResponse } from "../utils/apiResponse.js";
-import { logError } from '../utils/logger.js';
+import { catchAsync } from '../utils/catchAsync.js';
+import { loginUser, registerUser, logoutUser, refreshToken } from "../services/authService.js";
 
-const generateAccessToken = (user) =>
-  jwt.sign({ id: user.id, email: user.email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' });
+export const register = catchAsync(async (req, res) => { 
+  const data = await registerUser(req.body); 
+  res.json(new ApiResponse(201, data, "User registered successfully")); 
+});
 
-const generateRefreshToken = (user) =>
-  jwt.sign({ id: user.id, email: user.email }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' });
+export const login = catchAsync(async (req, res) => { 
+  const data = await loginUser(req.body); 
+  res.json(new ApiResponse(200, data, 'User Login Successfully'));
+});
 
-export const register = async (req, res, next) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password required' });
+export const refresh = catchAsync(async (req, res) => {
+  const { token } = req.body;
+  const data = await refreshToken(token);
+  res.json(new ApiResponse(200, data, "Access token refreshed successfully"));
+});
 
-    const existing = await authModel.findByEmail(email);
-    if (existing) return res.status(409).json({ error: 'User already exists' });
-
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await authModel.createUser({ name, email, password: hashed });
-
-    //generate tokens
-    const accessToken = generateAccessToken(user)
-    const refreshToken = generateRefreshToken(user)
-
-    //save refresh token in DB
-    await authModel.saveRefreshToken(user.id, refreshToken)
-    const data = {
-      "id": user.id,
-      "name": user.name,
-      "email": user.email,
-      "accessToken": accessToken,
-      "refreshToken": refreshToken,
-    };
-    return res.status(201).json(
-		new ApiResponse(201, data, "User registered Successfully")
-	);
-  } catch (err) {
-    logError(err);
-    next(err);
-  }
-};
-
-export const login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-
-    const user = await authModel.findByEmail(email);
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const match = await bcrypt.compare(password, user.password);
-    if (!user || !match) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-    await authModel.saveRefreshToken(user.id, refreshToken);
-	  const loggedInUser = await authModel.findByEmail(user.email);
-    const loggedInData = {
-      "id": loggedInUser.id,
-      "name": loggedInUser.name,
-      "email": loggedInUser.email,
-      "accessToken": accessToken,
-      "refreshToken": refreshToken,
-    };
-
-    return res.status(200).json(new ApiResponse(200, loggedInData, "User Login Successfully"));
-	
-  } catch (err) {
-    logError(err);
-    next(err);
-  }
-};
-
-export const refresh = async (req, res, next) => {
-  try {
-    const { token } = req.body;
-    if (!token) return res.status(401).json({ error: 'Refresh token required' });
-
-    const stored = await authModel.findByRefreshToken(token);
-    if (!stored) return res.status(403).json({ error: 'Refresh token invalid' });
-
-    jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err) => {
-      if (err) return res.status(403).json({ error: 'Invalid or expired refresh token' });
-      const accessToken = generateAccessToken(stored);
-      res.json({ accessToken });
-    });
-  } catch (err) {
-    logError(err);
-    next(err);
-  }
-};
-
-export const logout = async (req, res, next) => {
-  try {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ error: 'userId required' });
-    await authModel.removeRefreshToken(userId);
-    return res.status(200).json(new ApiResponse(200, null, "User Logged out Successfully"));
-  } catch (err) {
-    logError(err);
-    next(err);
-  }
-};
+export const logout = catchAsync(async (req, res) => {
+  const { userId } = req.body;
+  const data = await logoutUser(userId);
+  res.json(new ApiResponse(200, data, "User logged out successfully"));
+});

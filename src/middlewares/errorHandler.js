@@ -1,4 +1,12 @@
-export default (err, req, res, next) => {
-    res.status(err.status || 500).json({ "success": "False", error: err.message, "message": 'Internal Server Error' });
-  };
-  
+import { logError } from '../utils/logger.js';
+
+const errorHandler = (err, req, res, next) => {
+  logError(err, req);
+
+  res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
+};
+
+export default errorHandler;

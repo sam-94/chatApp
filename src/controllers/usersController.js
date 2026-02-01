@@ -1,13 +1,8 @@
-// src/controllers/usersController.js
 import * as userModel from '../models/userModel.js';
+import { catchAsync } from '../utils/catchAsync.js';
 
-export const listUsers = async (req, res, next) => {
-  try {
+export const listUsers = catchAsync(async (req, res, next) => {
     const users = await userModel.getAllUsers();
     res.json(users);
-  } catch (err) {
-    logError(err);
-    next(err);
-  }
-};
+});
 
