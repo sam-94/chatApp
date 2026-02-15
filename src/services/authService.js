@@ -79,10 +79,9 @@ export const refreshToken = async (token) => {
     const stored = await authModel.findByRefreshToken(token); 
     if (!stored) throw new AppError("Refresh token invalid", 403); 
     try { 
-        await verifyJwt(token, process.env.REFRESH_TOKEN_SECRET); 
+        jwt.verify(token, process.env.REFRESH_TOKEN_SECRET); 
     } catch (err) { 
         throw new AppError("Refresh token invalid or expired", 403); 
-
     } 
     const accessToken = generateAccessToken(stored); 
     return { accessToken }; 
